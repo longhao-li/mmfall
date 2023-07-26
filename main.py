@@ -9,7 +9,7 @@ from torch import Tensor
 from typing import List, Tuple, Any, Union, BinaryIO
 
 # Pytorch default settings.
-__PYTORCH_DEVICE__ = "cuda" if torch.cuda.is_available() else "cpu"
+__PYTORCH_DEVICE__ = "cpu"
 torch.set_default_device(__PYTORCH_DEVICE__)
 
 MMWDEMO_OUTPUT_MSG_DETECTED_POINTS = 1
@@ -510,6 +510,7 @@ class HVRAEParser(FrameParser):
         self._model = HVRAE()
         self._model.load("model/HVRAE.pth")
         self._out_file = open("out.csv", "a")
+        self._z_history = list()
 
     def on_frame(self, frame_id: int, num_detected_obj: int, tlv: List[Tuple[int, Any]]) -> None:
         frame = robust_z_score(tlv[0][1]) if len(tlv[0][1]) > 0 else tlv[0][1]        
@@ -524,11 +525,19 @@ class HVRAEParser(FrameParser):
         
         if len(self._pattern) == FRAMES_PER_PATTERN and self._empty_frame_count == 0:
             oversampled_pattern, center = oversampling(self._pattern)
+            self._z_history.append(center[2])
+            while len(self._z_history) > FRAMES_PER_PATTERN:
+                self._z_history.pop(0)
+
             with torch.no_grad():
                 pred = self._model.predict(torch.from_numpy(oversampled_pattern).unsqueeze(0).to(device = __PYTORCH_DEVICE__, dtype=torch.float32))
-                print("Anomaly: {}, Center: {}".format(pred, center))
+                is_falling = False
+                if max(self._z_history) - min(self._z_history) > 0.4:
+                    is_falling = pred >= 0.1
 
-                self._out_file.write("{},{},{},{},{},{}\n".format(time.time(), pred, center[0], center[1], center[2], pred >= 0.1))
+                print("Anomaly: {}, Center: {}, Is Falling: {}".format(pred, center, is_falling))
+
+                # self._out_file.write("{},{},{},{},{},{}\n".format(time.time(), pred, center[0], center[1], center[2], pred >= 0.1))
             # print(oversampled_pattern.shape)
             # print(center)
 
