@@ -504,7 +504,7 @@ class HVRAE(nn.Module):
 
 class HVRAEParser(FrameParser):
     def __init__(self) -> None:
-        super().__init__("COM4", 921600)
+        super().__init__("/dev/ttyUSB1", 921600)
         self._pattern = []
         self._empty_frame_count = 0
         self._model = HVRAE()
@@ -543,7 +543,7 @@ class HVRAEParser(FrameParser):
 
 
 if __name__ == '__main__':
-    cli = serial.Serial("COM3", 115200)
+    cli = serial.Serial("/dev/ttyUSB0", 115200)
 
     with open('config2.cfg', 'r') as cfg:
         config = cfg.readlines()
