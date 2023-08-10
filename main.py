@@ -159,7 +159,7 @@ class FrameParser:
             self._buffer = self._buffer[packet_length:]
 
 
-def send_config(serial: serial.Serial, config: str | List[str]) -> None:
+def send_config(serial: serial.Serial, config) -> None:
     if isinstance(config, str):
         time.sleep(0.03)
         if config[-1] != '\n':
@@ -469,8 +469,8 @@ class HVRAE(nn.Module):
         return torch.mean(log_p_xz + kl_loss)
     
     def load(self, file: Union[str, os.PathLike, BinaryIO]) -> None:
-        self.load_state_dict(torch.load(file))
-        self.to(device = __PYTORCH_DEVICE__)
+        self.load_state_dict(torch.load(file, map_location = __PYTORCH_DEVICE__))
+        # self.to(device = __PYTORCH_DEVICE__)
         self.eval()
     
     def predict(self, data: Tensor) -> float:
@@ -504,7 +504,7 @@ class HVRAE(nn.Module):
 
 class HVRAEParser(FrameParser):
     def __init__(self) -> None:
-        super().__init__("/dev/ttyUSB1", 921600)
+        super().__init__("/dev/ttyACM1", 921600)
         self._pattern = []
         self._empty_frame_count = 0
         self._model = HVRAE()
@@ -537,13 +537,13 @@ class HVRAEParser(FrameParser):
 
                 print("Anomaly: {}, Center: {}, Is Falling: {}".format(pred, center, is_falling))
 
-                # self._out_file.write("{},{},{},{},{},{}\n".format(time.time(), pred, center[0], center[1], center[2], pred >= 0.1))
+                self._out_file.write("{},{},{},{},{},{}\n".format(time.time(), pred, center[0], center[1], center[2], pred >= 0.1))
             # print(oversampled_pattern.shape)
             # print(center)
 
 
 if __name__ == '__main__':
-    cli = serial.Serial("/dev/ttyUSB0", 115200)
+    cli = serial.Serial("/dev/ttyACM0", 115200)
 
     with open('config2.cfg', 'r') as cfg:
         config = cfg.readlines()
