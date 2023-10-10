@@ -1,5 +1,6 @@
 import time
 import serial
+import serial.tools.list_ports
 import random
 import numpy as np
 import torch
@@ -502,9 +503,34 @@ class HVRAE(nn.Module):
             loss              = loss_function(data, pred, z_mean, z_log_var)
             return loss.item()
 
+
+XDS_CLI_SERIAL_PORT_NAME = 'XDS110 Class Application/User UART'
+XDS_DATA_SERIAL_PORT_NAME = 'XDS110 Class Auxiliary Data Port'
+CP210_CLI_SERIAL_PORT_NAME = 'Enhanced COM Port'
+CP210_DATA_SERIAL_PORT_NAME = 'Standard COM Port'
+
+
+def cli_serial_port() -> str:
+    serial_list = serial.tools.list_ports.comports()
+    for port in serial_list:
+        if (XDS_CLI_SERIAL_PORT_NAME in port.description) or (CP210_CLI_SERIAL_PORT_NAME in port.description):
+            return port.device
+    
+    raise Exception("Cannot find serial port.")
+
+
+def data_serial_port() -> str:
+    serial_list = serial.tools.list_ports.comports()
+    for port in serial_list:
+        if (XDS_DATA_SERIAL_PORT_NAME in port.description) or (CP210_DATA_SERIAL_PORT_NAME in port.description):
+            return port.device
+    
+    raise Exception("Cannot find serial port.")
+
+
 class HVRAEParser(FrameParser):
     def __init__(self) -> None:
-        super().__init__("COM4", 921600)
+        super().__init__(data_serial_port(), 921600)
         self._pattern = []
         self._empty_frame_count = 0
         self._model = HVRAE()
@@ -534,7 +560,7 @@ class HVRAEParser(FrameParser):
 
 
 if __name__ == '__main__':
-    cli = serial.Serial("COM3", 115200)
+    cli = serial.Serial(cli_serial_port(), 115200)
 
     with open('config2.cfg', 'r') as cfg:
         config = cfg.readlines()
