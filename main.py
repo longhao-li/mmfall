@@ -160,7 +160,7 @@ class FrameParser:
             self._buffer = self._buffer[packet_length:]
 
 
-def send_config(serial: serial.Serial, config: str | List[str]) -> None:
+def send_config(serial: serial.Serial, config) -> None:
     if isinstance(config, str):
         time.sleep(0.03)
         if config[-1] != '\n':
@@ -470,7 +470,7 @@ class HVRAE(nn.Module):
         return torch.mean(log_p_xz + kl_loss)
     
     def load(self, file: Union[str, os.PathLike, BinaryIO]) -> None:
-        self.load_state_dict(torch.load(file))
+        self.load_state_dict(torch.load(file, map_location = torch.device(__PYTORCH_DEVICE__)))
         self.to(device = __PYTORCH_DEVICE__)
         self.eval()
     
@@ -516,7 +516,14 @@ def cli_serial_port() -> str:
         if (XDS_CLI_SERIAL_PORT_NAME in port.description) or (CP210_CLI_SERIAL_PORT_NAME in port.description):
             return port.device
     
-    raise Exception("Cannot find serial port.")
+    candidate = list()
+    for port in serial_list:
+        if 'XDS110' in port.description:
+            candidate.append(port.device)
+    
+    candidate.sort()
+    assert(len(candidate) == 2)
+    return candidate[0]
 
 
 def data_serial_port() -> str:
@@ -525,8 +532,14 @@ def data_serial_port() -> str:
         if (XDS_DATA_SERIAL_PORT_NAME in port.description) or (CP210_DATA_SERIAL_PORT_NAME in port.description):
             return port.device
     
-    raise Exception("Cannot find serial port.")
-
+    candidate = list()
+    for port in serial_list:
+        if 'XDS110' in port.description:
+            candidate.append(port.device)
+    
+    candidate.sort()
+    assert(len(candidate) == 2)
+    return candidate[1]
 
 class HVRAEParser(FrameParser):
     def __init__(self) -> None:
