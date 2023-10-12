@@ -1,15 +1,17 @@
 import time
 import serial
+import serial.tools.list_ports
 import random
 import numpy as np
 import torch
 import os
 import torch.nn as nn
+import MySQLdb
 from torch import Tensor
 from typing import List, Tuple, Any, Union, BinaryIO
 
 # Pytorch default settings.
-__PYTORCH_DEVICE__ = "cpu"
+__PYTORCH_DEVICE__ = "cuda" if torch.cuda.is_available() else "cpu"
 torch.set_default_device(__PYTORCH_DEVICE__)
 
 MMWDEMO_OUTPUT_MSG_DETECTED_POINTS = 1
@@ -469,8 +471,8 @@ class HVRAE(nn.Module):
         return torch.mean(log_p_xz + kl_loss)
     
     def load(self, file: Union[str, os.PathLike, BinaryIO]) -> None:
-        self.load_state_dict(torch.load(file, map_location = __PYTORCH_DEVICE__))
-        # self.to(device = __PYTORCH_DEVICE__)
+        self.load_state_dict(torch.load(file, map_location = torch.device(__PYTORCH_DEVICE__)))
+        self.to(device = __PYTORCH_DEVICE__)
         self.eval()
     
     def predict(self, data: Tensor) -> float:
@@ -502,15 +504,53 @@ class HVRAE(nn.Module):
             loss              = loss_function(data, pred, z_mean, z_log_var)
             return loss.item()
 
+
+XDS_CLI_SERIAL_PORT_NAME = 'XDS110 Class Application/User UART'
+XDS_DATA_SERIAL_PORT_NAME = 'XDS110 Class Auxiliary Data Port'
+CP210_CLI_SERIAL_PORT_NAME = 'Enhanced COM Port'
+CP210_DATA_SERIAL_PORT_NAME = 'Standard COM Port'
+
+
+def cli_serial_port() -> str:
+    serial_list = serial.tools.list_ports.comports()
+    for port in serial_list:
+        if (XDS_CLI_SERIAL_PORT_NAME in port.description) or (CP210_CLI_SERIAL_PORT_NAME in port.description):
+            return port.device
+    
+    candidate = list()
+    for port in serial_list:
+        if 'XDS110' in port.description:
+            candidate.append(port.device)
+    
+    candidate.sort()
+    assert(len(candidate) == 2)
+    return candidate[0]
+
+
+def data_serial_port() -> str:
+    serial_list = serial.tools.list_ports.comports()
+    for port in serial_list:
+        if (XDS_DATA_SERIAL_PORT_NAME in port.description) or (CP210_DATA_SERIAL_PORT_NAME in port.description):
+            return port.device
+    
+    candidate = list()
+    for port in serial_list:
+        if 'XDS110' in port.description:
+            candidate.append(port.device)
+    
+    candidate.sort()
+    assert(len(candidate) == 2)
+    return candidate[1]
+
 class HVRAEParser(FrameParser):
     def __init__(self) -> None:
-        super().__init__("/dev/ttyACM1", 921600)
+        super().__init__(data_serial_port(), 921600)
         self._pattern = []
         self._empty_frame_count = 0
         self._model = HVRAE()
         self._model.load("model/HVRAE.pth")
-        self._out_file = open("out.csv", "a")
         self._z_history = list()
+        self._db = MySQLdb.connect("localhost", "root", "root", "yunfan", charset = "utf8mb4")
 
     def on_frame(self, frame_id: int, num_detected_obj: int, tlv: List[Tuple[int, Any]]) -> None:
         frame = robust_z_score(tlv[0][1]) if len(tlv[0][1]) > 0 else tlv[0][1]        
@@ -533,17 +573,23 @@ class HVRAEParser(FrameParser):
                 pred = self._model.predict(torch.from_numpy(oversampled_pattern).unsqueeze(0).to(device = __PYTORCH_DEVICE__, dtype=torch.float32))
                 is_falling = False
                 if max(self._z_history) - min(self._z_history) > 0.4:
-                    is_falling = pred >= 0.1
+                    is_falling = (pred >= 0.1)
+                
+                sql = "INSERT INTO fall(time, fallState) VALUES (\'{}\', \'{}\');".format(
+                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                    "跌倒" if is_falling else "未跌倒"
+                )
 
-                print("Anomaly: {}, Center: {}, Is Falling: {}".format(pred, center, is_falling))
-
-                self._out_file.write("{},{},{},{},{},{}\n".format(time.time(), pred, center[0], center[1], center[2], pred >= 0.1))
-            # print(oversampled_pattern.shape)
-            # print(center)
+                try:
+                    cursor = self._db.cursor()
+                    cursor.execute(sql)
+                    self._db.commit()
+                except:
+                    self._db.rollback()
 
 
 if __name__ == '__main__':
-    cli = serial.Serial("/dev/ttyACM0", 115200)
+    cli = serial.Serial(cli_serial_port(), 115200)
 
     with open('config2.cfg', 'r') as cfg:
         config = cfg.readlines()
