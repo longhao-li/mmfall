@@ -576,7 +576,7 @@ class HVRAEParser(FrameParser):
                     is_falling = (pred >= 0.1)
                 
                 sql = "INSERT INTO fall(time, fallState) VALUES (\'{}\', \'{}\');".format(
-                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                    time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()),
                     "跌倒" if is_falling else "未跌倒"
                 )
 
