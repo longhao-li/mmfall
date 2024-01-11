@@ -91,9 +91,21 @@ def oversampling(pattern: List[np.ndarray]) -> Tuple[List[np.ndarray], np.ndarra
     return oversampled_pattern, center
 
 
+def calculate_height_diff(pattern: List[np.ndarray]) -> float:
+    max_diff = 0
+    for i in range(len(pattern)):
+        for j in range(i + 1, len(pattern)):
+            diff = pattern[i] - pattern[j]
+            if diff > max_diff:
+                max_diff = diff
+    
+    return max_diff
+
+
 class FileParser:
     def __init__(self) -> None:
         self.pattern           = list()
+        self.heights           = list()
         self.empty_frame_count = 0
         self.model             = HVRAE()
         self.model.load("model/HVRAE.pth")
@@ -122,22 +134,27 @@ class FileParser:
                 self.infer(output, pointcloud)
 
     def infer(self, output, tlv: PointCloud) -> None:
-        frame = robust_z_score(tlv.points) if len(tlv.points) > 0 else tlv.points
+        frame = tlv.points
         self.pattern.append(frame)
         if frame.shape[0] == 0:
             self.empty_frame_count += 1
+            self.heights.append(0)
+        else:
+            self.heights.append(np.mean(frame[:, 2], axis=0))
         
         while len(self.pattern) > FRAMES_PER_PATTERN:
-            frame = self.pattern.pop(0)
+            frame  = self.pattern.pop(0)
             if frame.shape[0] == 0:
                 self.empty_frame_count -= 1
+            self.heights.pop(0)
         
         if len(self.pattern) == FRAMES_PER_PATTERN and self.empty_frame_count == 0:
             oversampled_pattern, center = oversampling(self.pattern)
+            height_diff = calculate_height_diff(self.heights)
             with torch.no_grad():
                 pred = self.model.predict(torch.from_numpy(oversampled_pattern).unsqueeze(0).to(dtype=torch.float32))
                 print(f"Anomaly: {pred}, Center: {center}")
-                print(f"{time.time()},{center[0]},{center[1]},{center[2]},{pred},{pred >= 0.1}", file=output)
+                print(f"{time.time()},{center[0]},{center[1]},{center[2]},{pred},{pred >= 0.01 and height_diff > 0.3}", file=output)
 
 
 if __name__ == "__main__":
