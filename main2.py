@@ -154,7 +154,7 @@ class FileParser:
             with torch.no_grad():
                 pred = self.model.predict(torch.from_numpy(oversampled_pattern).unsqueeze(0).to(dtype=torch.float32))
                 print(f"Anomaly: {pred}, Center: {center}")
-                print(f"{time.time()},{center[0]},{center[1]},{center[2]},{pred},{pred >= 0.01 and height_diff > 0.3}", file=output)
+                print(f"{time.time()},{center[0]},{center[1]},{center[2]},{pred},{pred >= 0.05 and height_diff > 0.3}", file=output)
 
 
 if __name__ == "__main__":
