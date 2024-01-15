@@ -5,8 +5,8 @@ import random
 import numpy as np
 import torch
 from typing import List, Tuple
-from model import HVRAE
-from data import TLV, PointCloud, UART_MAGIC_WORD, MMWDEMO_OUTPUT_MSG_DETECTED_POINTS
+from mmfall.model import HVRAE
+from mmfall.data import TLV, PointCloud, UART_MAGIC_WORD, MMWDEMO_OUTPUT_MSG_DETECTED_POINTS
 
 
 # HVRAE config
