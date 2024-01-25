@@ -161,3 +161,6 @@ cython_debug/
 
 # Generated output
 *.csv
+
+# Tensorboard summary
+runs/
