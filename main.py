@@ -12,9 +12,8 @@ def transform(tensor: Tensor) -> Tensor:
     return torch.cat((tensor, torch.zeros(pad_size, dim)), dim=0)[:, :4]
 
 
-def main(_: list[str]) -> None:
+def train() -> None:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    torch.set_default_device(device)
 
     # Load the dataset.
     dataset      = MMFallDataset("dataset/people_tracking/walking.bin", pattern_size=26, device=device, transform=transform)
@@ -26,6 +25,37 @@ def main(_: list[str]) -> None:
     print(model)
 
     model.fit(train_loader, test_loader, epochs=200)
+
+
+def predict() -> None:
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    # Load model
+    model = MMFall(num_frames=26, num_points=64, channels=4)
+    print(model)
+    model.load_state_dict(torch.load("model/mmfall.pth"))
+    model.eval()
+
+    # Load the dataset.
+    dataset = MMFallDataset("dataset/people_tracking/fall_0.bin", pattern_size=26, device=device, transform=transform)
+    loader  = DataLoader(dataset, batch_size=1, shuffle=False)
+    with torch.no_grad():
+        for _, data in enumerate(loader):
+            print(f'{torch.mean(data)[2]},{model.predict(data)}')
+
+
+def main(argv: list[str]) -> None:
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    torch.set_default_device(device)
+
+    if len(argv) != 2:
+        print(f"Usage: {argv[0]} [train|predict]")
+        return
+
+    if argv[1] == "train":
+        train()
+    elif argv[1] == "predict":
+        predict()
 
 
 if __name__ == "__main__":
