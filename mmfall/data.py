@@ -183,8 +183,10 @@ class MMFallDataset(Dataset):
         for i in range(len(self._frames)):
             mean            = torch.mean(self._frames[i], dim=0)
             mean[-1]        = 0
+            # Do not change height.
+            mean[-2]        = 0
             if mean.size(-1) == 5:
-                mean[-2] = 0
+                mean[-3] = 0 
             self._frames[i] = self._frames[i] - mean
             self._frames[i] = self._transform(self._frames[i].to(device))
         
