@@ -4,9 +4,6 @@ from torch.utils.data import DataLoader
 from mmfall.data import MMFallDataset, parse_file
 from mmfall.model import MMFall
 from typing import BinaryIO
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QApplication
-from virtualizer.window import MainWindow
 
 
 def transform(tensor: Tensor) -> Tensor:
@@ -50,6 +47,10 @@ def predict() -> None:
 
 
 def virtualize(path: str | BinaryIO) -> None:
+    # Linux server without libGL does not support PyQT.
+    from PyQt5.QtWidgets import QApplication
+    from virtualizer.window import MainWindow
+
     data = parse_file(path)
     if data is None:
         raise ValueError("Virtualize failed: Invalid file format.")
