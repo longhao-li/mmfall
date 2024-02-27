@@ -27,7 +27,7 @@ _GESTURE_FEATURES: int                  = 1050
 _ANN_OP_PROB: int                       = 1051
 
 
-def _parse_detected_points(tlv: bytes) -> Tensor:
+def _parse_detected_points(tlv: bytes) -> np.ndarray:
     tlv_type   = int.from_bytes(tlv[0:4], 'little', signed=False)
     tlv_length = int.from_bytes(tlv[4:8], 'little', signed=False)
     assert tlv_type == _DETECT_POINTS
@@ -36,11 +36,10 @@ def _parse_detected_points(tlv: bytes) -> Tensor:
     num_points = tlv_length // 16
 
     points = np.frombuffer(content, dtype=np.float32).reshape((num_points, 4))
-    return torch.from_numpy(points)
-    
+    return points 
 
 
-def _parse_spherical_points(tlv: bytes) -> Tensor:
+def _parse_spherical_points(tlv: bytes) -> np.ndarray:
     tlv_type   = int.from_bytes(tlv[0:4], 'little', signed=False)
     tlv_length = int.from_bytes(tlv[4:8], 'little', signed=False)
     assert tlv_type == _SPHERICAL_POINTS
@@ -56,10 +55,10 @@ def _parse_spherical_points(tlv: bytes) -> Tensor:
     doppler = spherical[:, 3]
 
     points = np.stack((x, y, z, doppler), axis=1)
-    return torch.from_numpy(points)
+    return points
 
 
-def _parse_compressed_spherical_points(tlv: bytes) -> Tensor:
+def _parse_compressed_spherical_points(tlv: bytes) -> np.ndarray:
     tlv_type   = int.from_bytes(tlv[0:4], 'little', signed=False)
     tlv_length = int.from_bytes(tlv[4:8], 'little', signed=False)
     assert tlv_type == _COMPRESSED_SPHERICAL_POINTS
@@ -90,10 +89,10 @@ def _parse_compressed_spherical_points(tlv: bytes) -> Tensor:
         points[i, 3] = doppler
         points[i, 4] = snr
     
-    return torch.from_numpy(points)
+    return points
 
 
-def parse_frame(frame: bytes) -> Tensor | None:
+def parse_frame(frame: bytes) -> np.ndarray | None:
     # check magic word
     if len(frame) < 40 or frame[0:8] != _MAGIC_WORD:
         raise ValueError('Invalid magic word. Frame data may be corrupted.')
@@ -123,7 +122,7 @@ def parse_frame(frame: bytes) -> Tensor | None:
     return None
 
 
-def parse_file(file: str | BinaryIO) -> List[Tensor] | None:
+def parse_file(file: str | BinaryIO) -> List[np.ndarray] | None:
     data: None | bytes = None
     if isinstance(file, str):
         with open(file, 'rb') as f:
@@ -144,9 +143,9 @@ def parse_file(file: str | BinaryIO) -> List[Tensor] | None:
         parsed_data = parse_frame(data)
         if parsed_data is None:
             if point_dim is not None:
-                frames.append(torch.empty((0, point_dim)))
+                frames.append(np.empty((0, point_dim)))
         else:
-            point_dim = parsed_data.size(-1)
+            point_dim = parsed_data.shape[-1]
             frames.append(parsed_data)
 
         length = int.from_bytes(data[12:16], 'little', signed=False)
@@ -175,8 +174,10 @@ class MMFallDataset(Dataset):
     ) -> None:
         if pattern_size < 1:
             raise ValueError('Invalid pattern size. Pattern size must be greater than 0.')
+        
+        numpy_frames = parse_file(file)
 
-        self._frames       = parse_file(file)
+        self._frames       = [torch.from_numpy(frame).to(device = device, dtype = torch.float) for frame in numpy_frames]
         self._transform    = transform
         self._pattern_size = pattern_size
 

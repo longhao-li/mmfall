@@ -1,8 +1,12 @@
 import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
-from mmfall.data import MMFallDataset
+from mmfall.data import MMFallDataset, parse_file
 from mmfall.model import MMFall
+from typing import BinaryIO
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication
+from virtualizer.window import MainWindow
 
 
 def transform(tensor: Tensor) -> Tensor:
@@ -45,18 +49,34 @@ def predict() -> None:
             print(f'{model.predict(data)}')
 
 
+def virtualize(path: str | BinaryIO) -> None:
+    data = parse_file(path)
+    if data is None:
+        raise ValueError("Virtualize failed: Invalid file format.")
+
+    app    = QApplication([])
+    window = MainWindow(data)
+    window.show()
+    app.exec_()
+
+
 def main(argv: list[str]) -> None:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     torch.set_default_device(device)
 
-    if len(argv) != 2:
-        print(f"Usage: {argv[0]} [train|predict]")
+    if len(argv) < 2:
+        print(f"Usage: {argv[0]} [train|predict|virtualize]")
         return
 
     if argv[1] == "train":
         train()
     elif argv[1] == "predict":
         predict()
+    elif argv[1] == "virtualize":
+        if len(argv) < 3:
+            print(f"Usage: {argv[0]} virtualize [path]")
+            return
+        virtualize(argv[2])
 
 
 if __name__ == "__main__":
